@@ -710,19 +710,20 @@ fun RealtimeWeatherMetricsCard(
 
         is WeatherUiState.Success -> {
             // Success view
-            val dayName = if (state.activeDayIndex == 0) "Today" else {
+            val activeIdx = state.activeDayIndex.coerceIn(0, (state.dailyDates.size - 1).coerceAtLeast(0))
+            val dayName = if (activeIdx == 0) "Today" else {
                 try {
                     val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                    val date = inputFormat.parse(state.dailyDates[state.activeDayIndex])
+                    val date = inputFormat.parse(state.dailyDates.getOrElse(activeIdx) { "" })
                     val outputFormat = SimpleDateFormat("EEEE", Locale.getDefault())
                     outputFormat.format(date ?: Date())
                 } catch (e: Exception) {
-                    "Day ${state.activeDayIndex + 1}"
+                    "Day ${activeIdx + 1}"
                 }
             }
 
-            val currentTemp = if (state.activeDayIndex == 0) state.temp else state.dailyMaxTemp[state.activeDayIndex]
-            val precipProb = if (state.activeDayIndex == 0) state.rainProb else state.dailyPrecipProb[state.activeDayIndex]
+            val currentTemp = if (activeIdx == 0) state.temp else state.dailyMaxTemp.getOrElse(activeIdx) { state.temp }
+            val precipProb = if (activeIdx == 0) state.rainProb else state.dailyPrecipProb.getOrElse(activeIdx) { state.rainProb }
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -843,7 +844,7 @@ fun RealtimeWeatherMetricsCard(
                                             fontSize = 14.sp
                                         )
                                         Text(
-                                            text = "H: ${state.dailyMaxTemp[state.activeDayIndex].roundToInt()}°  L: ${state.dailyMinTemp[state.activeDayIndex].roundToInt()}°",
+                                            text = "H: ${state.dailyMaxTemp.getOrElse(activeIdx) { state.temp }.roundToInt()}°  L: ${state.dailyMinTemp.getOrElse(activeIdx) { state.temp }.roundToInt()}°",
                                             color = Color.White.copy(alpha = 0.8f),
                                             fontSize = 12.sp
                                         )
@@ -1055,7 +1056,10 @@ fun InteractiveTemperatureGraph(
         val width = size.width
         val height = size.height
 
-        val stepX = width / 6
+        if (maxTemps.isEmpty() || minTemps.isEmpty()) return@Canvas
+
+        val numPoints = maxTemps.size
+        val stepX = if (numPoints > 1) width / (numPoints - 1) else width
         val paddingY = 24.dp.toPx()
 
         val absPeakMax = (maxTemps.maxOrNull() ?: 100.0).toFloat()
@@ -1085,107 +1089,114 @@ fun InteractiveTemperatureGraph(
         val maxPoints = maxTemps.mapIndexed { idx, t -> Offset(idx * stepX, convertY(t.toFloat())) }
         val minPoints = minTemps.mapIndexed { idx, t -> Offset(idx * stepX, convertY(t.toFloat())) }
 
-        // Draw curves with linear gradients
-        val maxPath = Path().apply {
-            moveTo(maxPoints[0].x, maxPoints[0].y)
-            for (i in 1 until maxPoints.size) {
-                val p0 = maxPoints[i - 1]
-                val p1 = maxPoints[i]
-                cubicTo(
-                    (p0.x + p1.x) / 2, p0.y,
-                    (p0.x + p1.x) / 2, p1.y,
-                    p1.x, p1.y
-                )
+        if (maxPoints.size >= 2 && minPoints.size >= 2 && maxPoints.size == minPoints.size) {
+            val listSize = maxPoints.size
+            // Draw curves with linear gradients
+            val maxPath = Path().apply {
+                moveTo(maxPoints[0].x, maxPoints[0].y)
+                for (i in 1 until listSize) {
+                    val p0 = maxPoints[i - 1]
+                    val p1 = maxPoints[i]
+                    cubicTo(
+                        (p0.x + p1.x) / 2, p0.y,
+                        (p0.x + p1.x) / 2, p1.y,
+                        p1.x, p1.y
+                    )
+                }
             }
-        }
 
-        val minPath = Path().apply {
-            moveTo(minPoints[0].x, minPoints[0].y)
-            for (i in 1 until minPoints.size) {
-                val p0 = minPoints[i - 1]
-                val p1 = minPoints[i]
-                cubicTo(
-                    (p0.x + p1.x) / 2, p0.y,
-                    (p0.x + p1.x) / 2, p1.y,
-                    p1.x, p1.y
-                )
+            val minPath = Path().apply {
+                moveTo(minPoints[0].x, minPoints[0].y)
+                for (i in 1 until listSize) {
+                    val p0 = minPoints[i - 1]
+                    val p1 = minPoints[i]
+                    cubicTo(
+                        (p0.x + p1.x) / 2, p0.y,
+                        (p0.x + p1.x) / 2, p1.y,
+                        p1.x, p1.y
+                    )
+                }
             }
-        }
 
-        // Render min-max range fill path
-        val fillPath = Path().apply {
-            moveTo(maxPoints[0].x, maxPoints[0].y)
-            for (i in 1 until maxPoints.size) {
-                val p0 = maxPoints[i - 1]
-                val p1 = maxPoints[i]
-                cubicTo(
-                    (p0.x + p1.x) / 2, p0.y,
-                    (p0.x + p1.x) / 2, p1.y,
-                    p1.x, p1.y
-                )
+            // Render min-max range fill path
+            val fillPath = Path().apply {
+                moveTo(maxPoints[0].x, maxPoints[0].y)
+                for (i in 1 until listSize) {
+                    val p0 = maxPoints[i - 1]
+                    val p1 = maxPoints[i]
+                    cubicTo(
+                        (p0.x + p1.x) / 2, p0.y,
+                        (p0.x + p1.x) / 2, p1.y,
+                        p1.x, p1.y
+                    )
+                }
+                lineTo(minPoints[listSize - 1].x, minPoints[listSize - 1].y)
+                for (i in (listSize - 2) downTo 0) {
+                    val p0 = minPoints[i + 1]
+                    val p1 = minPoints[i]
+                    cubicTo(
+                        (p0.x + p1.x) / 2, p0.y,
+                        (p0.x + p1.x) / 2, p1.y,
+                        p1.x, p1.y
+                    )
+                }
+                close()
             }
-            lineTo(minPoints[6].x, minPoints[6].y)
-            for (i in 5 downTo 0) {
-                val p0 = minPoints[i + 1]
-                val p1 = minPoints[i]
-                cubicTo(
-                    (p0.x + p1.x) / 2, p0.y,
-                    (p0.x + p1.x) / 2, p1.y,
-                    p1.x, p1.y
-                )
-            }
-            close()
-        }
 
-        // Draw range translucent brush
-        drawPath(
-            path = fillPath,
-            brush = Brush.verticalGradient(
-                colors = listOf(Color(0xFFFF5252).copy(alpha = 0.15f), Color(0xFF0061A4).copy(alpha = 0.1f))
+            // Draw range translucent brush
+            drawPath(
+                path = fillPath,
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color(0xFFFF5252).copy(alpha = 0.15f), Color(0xFF0061A4).copy(alpha = 0.1f))
+                )
             )
-        )
 
-        // Draw curves lines
-        drawPath(path = maxPath, color = Color(0xFFFF5252), style = Stroke(width = 3.dp.toPx()))
-        drawPath(path = minPath, color = Color(0xFF0061A4), style = Stroke(width = 3.dp.toPx()))
+            // Draw curves lines
+            drawPath(path = maxPath, color = Color(0xFFFF5252), style = Stroke(width = 3.dp.toPx()))
+            drawPath(path = minPath, color = Color(0xFF0061A4), style = Stroke(width = 3.dp.toPx()))
+        }
 
         // Draw interactive selector vertical line and highlighting glowing dots
-        val activeX = activeIndex * stepX
-        drawLine(
-            color = Color(0xFF0061A4),
-            start = Offset(activeX, 0f),
-            end = Offset(activeX, height),
-            strokeWidth = 1.5.dp.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
-        )
+        val safeActiveIndex = activeIndex.coerceIn(0, (maxPoints.size - 1).coerceAtLeast(0))
+        if (maxPoints.isNotEmpty() && minPoints.isNotEmpty() && safeActiveIndex < maxPoints.size && safeActiveIndex < minPoints.size) {
+            val activeX = safeActiveIndex * stepX
+            drawLine(
+                color = Color(0xFF0061A4),
+                start = Offset(activeX, 0f),
+                end = Offset(activeX, height),
+                strokeWidth = 1.5.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+            )
 
-        // Draw active nodes
-        drawCircle(
-            color = Color(0xFF0061A4),
-            radius = 7.dp.toPx(),
-            center = Offset(activeX, maxPoints[activeIndex].y)
-        )
-        drawCircle(
-            color = Color.White,
-            radius = 4.dp.toPx(),
-            center = Offset(activeX, maxPoints[activeIndex].y)
-        )
+            // Draw active nodes
+            drawCircle(
+                color = Color(0xFF0061A4),
+                radius = 7.dp.toPx(),
+                center = Offset(activeX, maxPoints[safeActiveIndex].y)
+            )
+            drawCircle(
+                color = Color.White,
+                radius = 4.dp.toPx(),
+                center = Offset(activeX, maxPoints[safeActiveIndex].y)
+            )
 
-        drawCircle(
-            color = Color(0xFF0061A4),
-            radius = 7.dp.toPx(),
-            center = Offset(activeX, minPoints[activeIndex].y)
-        )
-        drawCircle(
-            color = Color.White,
-            radius = 4.dp.toPx(),
-            center = Offset(activeX, minPoints[activeIndex].y)
-        )
+            drawCircle(
+                color = Color(0xFF0061A4),
+                radius = 7.dp.toPx(),
+                center = Offset(activeX, minPoints[safeActiveIndex].y)
+            )
+            drawCircle(
+                color = Color.White,
+                radius = 4.dp.toPx(),
+                center = Offset(activeX, minPoints[safeActiveIndex].y)
+            )
+        }
     }
 
     // Compose overlay on top of canvas for touch triggers to offer perfect response and ripple feed
+    val interactionCount = maxTemps.size
     Row(modifier = Modifier.fillMaxSize()) {
-        for (idx in 0 until 7) {
+        for (idx in 0 until interactionCount) {
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -1229,7 +1240,14 @@ fun Forecast7DayListCard(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    for (i in 0 until 7) {
+                    val count = minOf(
+                        state.dailyMaxTemp.size,
+                        state.dailyMinTemp.size,
+                        state.dailyPrecipProb.size,
+                        state.dailyDates.size,
+                        7
+                    )
+                    for (i in 0 until count) {
                         val maxT = state.dailyMaxTemp[i]
                         val minT = state.dailyMinTemp[i]
                         val prob = state.dailyPrecipProb[i]
