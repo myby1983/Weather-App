@@ -1,5 +1,5 @@
 {
-  "name": "Nimbus Weather",
+  "name": "KAALAM Weather",
   "description": "A responsive real-time weather dashboard featuring severe alert notifications, interactive 7-day forecast analytics, and Google Sign-On.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

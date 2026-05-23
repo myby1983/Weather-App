@@ -110,7 +110,7 @@ fun WeatherDashboardScreen(
                                         tint = Color(0xFF0061A4)
                                     )
                                     Text(
-                                        text = "NIMBUS WEATHER",
+                                        text = "KAALAM WEATHER",
                                         color = Color(0xFF1A1C1E),
                                         fontWeight = FontWeight.ExtraBold,
                                         fontFamily = FontFamily.Monospace,
@@ -327,7 +327,7 @@ fun GoogleLoginWelcomeScreen(
                 }
 
                 Text(
-                    text = "Nimbus Dashboard",
+                    text = "KAALAM Dashboard",
                     fontWeight = FontWeight.Bold,
                     fontSize = 26.sp,
                     color = Color(0xFF1A1C1E),

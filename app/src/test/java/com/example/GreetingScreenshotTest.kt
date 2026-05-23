@@ -24,7 +24,7 @@ class GreetingScreenshotTest {
   fun greeting_screenshot() {
     composeTestRule.setContent {
       MyApplicationTheme {
-        Text("Welcome to Nimbus Weather!")
+        Text("Welcome to KAALAM Weather!")
       }
     }
 
